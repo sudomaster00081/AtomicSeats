@@ -13,7 +13,6 @@
             --booked: #dc3545;
             --selected: #17a2b8;
             --screen: #e9ecef;
-            --help-bg: #f1f8ff;
         }
         
         body {
@@ -29,22 +28,6 @@
             text-align: center;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             margin-bottom: 2rem;
-            position: relative;
-        }
-        
-        .help-badge {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            cursor: pointer;
-            font-weight: 600;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
         }
         
         .screen {
@@ -176,15 +159,6 @@
             margin-right: auto;
         }
         
-        .panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f1f8ff;
-        }
-        
         .status-badge {
             font-size: 0.9rem;
             padding: 0.35rem 0.8rem;
@@ -233,39 +207,6 @@
             display: block;
         }
         
-        /* Help Modal Styles */
-        .help-step {
-            background: var(--help-bg);
-            border-left: 4px solid #0d6efd;
-            padding: 15px;
-            border-radius: 0 8px 8px 0;
-            margin: 15px 0;
-        }
-        
-        .help-icon {
-            font-size: 1.8rem;
-            min-width: 40px;
-            text-align: center;
-        }
-        
-        .conflict-badge {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #dc3545;
-            color: white;
-            font-size: 0.7rem;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            z-index: 10;
-        }
-        
         @media (max-width: 768px) {
             .seat {
                 width: 36px;
@@ -284,15 +225,6 @@
                 padding: 15px;
                 margin: 15px;
             }
-            .help-badge {
-                position: static;
-                margin-top: 10px;
-                animation: none;
-            }
-            .panel-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
         }
     </style>
 </head>
@@ -301,15 +233,10 @@
         <div class="container">
             <h1><i class="fas fa-film"></i> Movie Show Seat Management</h1>
             <p class="lead">Real-time seat reservation system with concurrency safety</p>
-            <div class="d-flex justify-content-center gap-3 mt-3 flex-wrap">
+            <div class="d-flex justify-content-center gap-3 mt-3">
                 <span class="badge bg-success fs-6"><i class="fas fa-shield-alt"></i> Concurrency Safe</span>
                 <span class="badge bg-primary fs-6"><i class="fas fa-database"></i> PostgreSQL Backend</span>
                 <span class="badge bg-warning text-dark fs-6"><i class="fas fa-hourglass-half"></i> Auto Expiry</span>
-                <span class="badge bg-info text-dark fs-6"><i class="fas fa-sync-alt"></i> Live Updates</span>
-            </div>
-            <div class="help-badge" data-bs-toggle="modal" data-bs-target="#helpModal">
-                <i class="fas fa-question-circle fa-2x"></i>
-                <div class="mt-1">Need Help?</div>
             </div>
         </div>
     </div>
@@ -319,7 +246,8 @@
             <i class="fas fa-info-circle fa-2x me-3"></i>
             <div>
                 <strong>Demo Show:</strong> Avengers Endgame (7:00 PM) • 
-                <strong>Pro Tip:</strong> Seats selected by others will automatically disappear from your selection!
+                <strong>Seat Selection:</strong> Click available seats (green) to select • 
+                <strong>Holds:</strong> Expire after 10 minutes if not booked
             </div>
         </div>
 
@@ -348,6 +276,7 @@
             </div>
             
             <div id="seats-grid">
+                <!-- Seats will be dynamically generated here -->
                 <div class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Loading...</span>
@@ -377,12 +306,7 @@
         </div>
         
         <div class="action-panel">
-            <div class="panel-header">
-                <h3 class="mb-0"><i class="fas fa-ticket-alt"></i> Reservation Actions</h3>
-                <button type="button" class="btn btn-sm btn-outline-info d-none d-md-flex" data-bs-toggle="modal" data-bs-target="#helpModal">
-                    <i class="fas fa-question-circle me-1"></i> How to Use
-                </button>
-            </div>
+            <h3 class="mb-4 text-center"><i class="fas fa-ticket-alt"></i> Reservation Actions</h3>
             
             <div class="row mb-4">
                 <div class="col-md-6 mb-3">
@@ -474,94 +398,6 @@
         </div>
     </div>
 
-    <!-- HELP MODAL -->
-    <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="helpModalLabel">
-                        <i class="fas fa-question-circle me-2"></i>Seat Reservation Guide
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-lightbulb me-2"></i>
-                        <strong>Real-time Protection:</strong> If someone else books a seat you've selected, it will automatically disappear from your selection with a notification!
-                    </div>
-                    
-                    <div class="help-step">
-                        <div class="d-flex">
-                            <div class="help-icon text-primary">
-                                <i class="fas fa-mouse-pointer"></i>
-                            </div>
-                            <div>
-                                <h5>Select Seats</h5>
-                                <p>Click on <span class="badge bg-success">green (available)</span> seats to select them. Selected seats turn <span class="badge bg-info text-dark">blue</span>. 
-                                <strong>Pro Tip:</strong> Seats selected by others will automatically vanish from your selection!</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="help-step">
-                        <div class="d-flex">
-                            <div class="help-icon text-warning">
-                                <i class="fas fa-hourglass-half"></i>
-                            </div>
-                            <div>
-                                <h5>Hold Seats Temporarily</h5>
-                                <p>Click "Hold Selected Seats" to reserve them for <strong>10 minutes</strong> (adjustable). 
-                                This prevents others from booking them while you complete payment. 
-                                You'll receive a <code>hold_id</code> - keep this safe!</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="help-step">
-                        <div class="d-flex">
-                            <div class="help-icon text-success">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div>
-                                <h5>Confirm Booking</h5>
-                                <p>Enter your <code>hold_id</code> and click "Book Hold" to permanently reserve seats. 
-                                Once booked, seats turn <span class="badge bg-danger">red</span> and cannot be selected by others.</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="help-step">
-                        <div class="d-flex">
-                            <div class="help-icon text-danger">
-                                <i class="fas fa-undo"></i>
-                            </div>
-                            <div>
-                                <h5>Release or Expire</h5>
-                                <p>Click "Release Hold" to free seats early. If you don't book within the hold duration, 
-                                seats automatically become available again (shown with countdown timer).</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4 p-3 bg-light rounded">
-                        <h5><i class="fas fa-exclamation-triangle text-warning me-2"></i>Important Notes</h5>
-                        <ul class="mt-2 mb-0">
-                            <li>Seat status updates automatically every 15 seconds</li>
-                            <li>If your selected seat turns orange/red during selection, it means someone else grabbed it first</li>
-                            <li>Always book your hold before the timer expires!</li>
-                            <li>Network issues? Check the response area below the action buttons for details</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="fas fa-thumbs-up me-1"></i>Got It!
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="toast-container"></div>
 
     <script>
@@ -616,54 +452,8 @@
                 if (!response.ok) throw new Error('Failed to load seat status');
                 
                 const data = await response.json();
-                
-                // CRITICAL: Check for seats that were selected but are no longer available
-                const unavailableInSelection = [];
-                const currentSeatMap = {};
-                
-                // Build seat map and identify unavailable selected seats
-                data.seats.forEach(seat => {
-                    currentSeatMap[seat.seat_id] = seat;
-                    if (selectedSeats.has(seat.seat_id) && seat.status !== 'available') {
-                        unavailableInSelection.push(seat.seat_id);
-                    }
-                });
-                
-                // Remove unavailable seats from selection
-                if (unavailableInSelection.length > 0) {
-                    unavailableInSelection.forEach(seatId => selectedSeats.delete(seatId));
-                    
-                    // Show prominent notification
-                    const seatList = unavailableInSelection.join(', ');
-                    showToast(
-                        `<i class="fas fa-user-friends me-2"></i><strong>Heads up!</strong> Seats ${seatList} were just taken by others and removed from your selection.`,
-                        'warning',
-                        8000
-                    );
-                    
-                    // Visual feedback on the grid (temporary badge)
-                    unavailableInSelection.forEach(seatId => {
-                        const seatEl = document.querySelector(`.seat[data-seat-id="${seatId}"]`);
-                        if (seatEl && !seatEl.querySelector('.conflict-badge')) {
-                            const badge = document.createElement('div');
-                            badge.className = 'conflict-badge';
-                            badge.innerHTML = '<i class="fas fa-user"></i>';
-                            seatEl.appendChild(badge);
-                            
-                            // Remove badge after animation
-                            setTimeout(() => {
-                                if (badge.parentNode === seatEl) {
-                                    seatEl.removeChild(badge);
-                                }
-                            }, 3000);
-                        }
-                    });
-                }
-                
-                renderSeats(data.seats, currentSeatMap);
+                renderSeats(data.seats);
                 updateCounts(data);
-                updateSelectedCount();
-                updateHoldButton();
                 showResponse('Seat status updated successfully', 'success', 2000);
             } catch (error) {
                 showError('Failed to load seat status: ' + error.message);
@@ -671,7 +461,7 @@
             }
         }
         
-        function renderSeats(seats, seatMap) {
+        function renderSeats(seats) {
             // Group seats by row (A-E)
             const rows = { A: [], B: [], C: [], D: [], E: [] };
             
@@ -706,10 +496,12 @@
                     const isAvailable = seat.status === 'available';
                     const baseClass = `seat ${seat.status} ${seat.seat_id.charAt(0)}`;
                     const classes = isSelected ? `${baseClass} selected` : baseClass;
+                    const disabled = seat.status !== 'available' ? 'disabled' : '';
                     
                     html += `
                     <div class="${classes}" 
                          data-seat-id="${seat.seat_id}"
+                         ${disabled}
                          title="${seat.seat_id} - ${seat.status.toUpperCase()}${seat.hold_expires_at ? ' (Expires: ' + new Date(seat.hold_expires_at).toLocaleTimeString() + ')' : ''}">
                         ${seat.seat_id.substring(1)}
                         ${seat.status === 'held' && seat.hold_expires_at ? 
@@ -792,19 +584,12 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    showResponse(`✅ Hold created! ID: <strong>${data.hold_id}</strong><br>Expires: ${new Date(data.expires_at).toLocaleString()}`, 'success', 8000);
+                    showResponse(`✅ Hold created! ID: ${data.hold_id}<br>Expires: ${new Date(data.expires_at).toLocaleString()}`, 'success', 8000);
                     holdIdInput.value = data.hold_id;
                     clearSelection();
                     setTimeout(loadSeatStatus, 500);
                 } else {
                     showError(`Hold failed: ${data.error || 'Unknown error'}`);
-                    // Auto-clear invalid selections
-                    if (data.unavailable_seats) {
-                        data.unavailable_seats.forEach(seatId => selectedSeats.delete(seatId));
-                        updateSelectedCount();
-                        updateHoldButton();
-                        renderSeats(Object.values(seatData), seatData); // Refresh UI
-                    }
                 }
             } catch (error) {
                 showError('Hold request failed: ' + error.message);
@@ -829,7 +614,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    showResponse(`✅ Booking confirmed! ID: <strong>${data.booking_id}</strong><br>Booked at: ${new Date(data.booked_at).toLocaleString()}`, 'success', 8000);
+                    showResponse(`✅ Booking confirmed! Booking ID: ${data.booking_id}<br>Booked at: ${new Date(data.booked_at).toLocaleString()}`, 'success', 8000);
                     holdIdInput.value = '';
                     setTimeout(loadSeatStatus, 500);
                 } else {
@@ -905,15 +690,15 @@
             showToast(message, 'error');
         }
         
-        function showToast(message, type = 'info', duration = 5000) {
+        function showToast(message, type = 'info') {
             const toastContainer = document.querySelector('.toast-container');
             const toastId = 'toast-' + Date.now();
             
             const colorMap = {
                 success: 'bg-success',
                 error: 'bg-danger',
-                warning: 'bg-warning text-dark',
-                info: 'bg-info text-dark'
+                warning: 'bg-warning',
+                info: 'bg-info'
             };
             
             const iconMap = {
@@ -924,12 +709,11 @@
             };
             
             const toastHTML = `
-                <div id="${toastId}" class="toast show mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 350px; max-width: 500px;">
-                    <div class="toast-header ${colorMap[type] || 'bg-primary text-white'}">
+                <div id="${toastId}" class="toast show mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="min-width: 300px;">
+                    <div class="toast-header ${colorMap[type] || 'bg-primary'} text-white">
                         <i class="fas ${iconMap[type] || 'fa-bell'} me-2"></i>
                         <strong class="me-auto">Seat System</strong>
-                        <button type="button" class="btn-close ${type === 'warning' || type === 'info' ? '' : 'btn-close-white'}" 
-                                data-bs-dismiss="toast" aria-label="Close"></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
                     </div>
                     <div class="toast-body">${message}</div>
                 </div>
@@ -937,18 +721,11 @@
             
             toastContainer.insertAdjacentHTML('beforeend', toastHTML);
             
-            // Auto-remove after duration
+            // Auto-remove after 5 seconds
             setTimeout(() => {
                 const toastEl = document.getElementById(toastId);
-                if (toastEl && toastEl.parentNode === toastContainer) {
-                    toastEl.classList.remove('show');
-                    setTimeout(() => {
-                        if (toastEl.parentNode === toastContainer) {
-                            toastContainer.removeChild(toastEl);
-                        }
-                    }, 300);
-                }
-            }, duration);
+                if (toastEl) toastEl.remove();
+            }, 5000);
         }
         
         function formatTimeUntil(expiryDate) {
