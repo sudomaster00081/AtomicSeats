@@ -30,14 +30,18 @@ active_cleanup = True
 
 def background_cleanup():
     """Periodically clean up expired holds"""
+    # CRITICAL: Create thread-local DB connection to avoid connection leaks
+    thread_db = DatabaseManager(os.getenv('DATABASE_URL'))  # New isolated connection
     while active_cleanup:
-        time.sleep(10)  # Run every 10 seconds
         try:
-            cleaned = db.cleanup_expired_holds()
+            cleaned = thread_db.cleanup_expired_holds()
             if cleaned > 0:
                 logger.info(f"Background cleanup: {cleaned} holds released")
+            else: 
+                print("cleanup with zero seats")
         except Exception as e:
             logger.error(f"Background cleanup error: {e}")
+        time.sleep(10)  # Sleep AFTER processing to avoid tight loops on error
 
 cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
 cleanup_thread.start()
@@ -152,4 +156,4 @@ if __name__ == '__main__':
     """)
     
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
