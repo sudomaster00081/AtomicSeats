@@ -158,7 +158,18 @@ class DatabaseManager:
                 ).with_for_update().first()
                 
                 if not hold:
-                    return False, {"error": "hold not found"}
+                    # CHECK FOR EXISTING BOOKING BEFORE FAILING
+                    existing_booking = session.query(Booking).filter(
+                        Booking.booking_id == hold_id,  # Reused hold_id as booking_id
+                        Booking.show_id == show_id
+                    ).first()
+                    if existing_booking:
+                        return True, {  # IDEMPOTENT SUCCESS
+                            "booking_id": str(existing_booking.booking_id),
+                            "seat_ids": existing_booking.seat_ids,
+                            "booked_at": existing_booking.booked_at.isoformat()
+                        }
+                    return False, {"error": "hold not found or expired"}
                 
                 if hold.expires_at <= now:
                     # Clean up expired hold
