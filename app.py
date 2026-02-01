@@ -25,8 +25,26 @@ CORS(app)
 # DATABASE_URL = "postgresql://user:password@localhost:5432/seat_management"
 DATABASE_URL = os.getenv('DATABASE_URL')
 # Or from environment: os.getenv('DATABASE_URL')
-
 db = DatabaseManager(DATABASE_URL)
+
+# Auto-initialize demo show if it doesn't exist
+def initialize_demo_show():
+    demo_show_id = "avengers_2026_7pm"
+    demo_seats = [f"{row}{num}" for row in "ABCDE" for num in range(1, 11)]
+    
+    try:
+        success, message = db.initialize_show(demo_show_id, demo_seats)
+        if success:
+            logger.info(f"✅ Pre-initialized demo show: {demo_show_id}")
+        else:
+            logger.info(f"ℹ️ Demo show already exists: {demo_show_id}")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize demo show: {e}")
+
+# Initialize demo show on module load (works with Gunicorn)
+initialize_demo_show()
+
+
 
 # Background cleanup thread
 active_cleanup = True

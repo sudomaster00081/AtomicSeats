@@ -8,6 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 5000
 
 CMD sh -c "gunicorn -w 3 -b 0.0.0.0:5000 app:app"
