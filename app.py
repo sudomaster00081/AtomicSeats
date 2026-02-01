@@ -7,6 +7,9 @@ import time
 from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
+import signal
+import atexit
+
 load_dotenv()
 
 
@@ -30,21 +33,38 @@ active_cleanup = True
 
 def background_cleanup():
     """Periodically clean up expired holds"""
-    # CRITICAL: Create thread-local DB connection to avoid connection leaks
-    thread_db = DatabaseManager(os.getenv('DATABASE_URL'))  # New isolated connection
+    thread_db = DatabaseManager(os.getenv('DATABASE_URL'))  # Thread-local DB connection
     while active_cleanup:
         try:
             cleaned = thread_db.cleanup_expired_holds()
             if cleaned > 0:
                 logger.info(f"Background cleanup: {cleaned} holds released")
-            else: 
-                print("cleanup with zero seats")
         except Exception as e:
             logger.error(f"Background cleanup error: {e}")
-        time.sleep(10)  # Sleep AFTER processing to avoid tight loops on error
+        time.sleep(10)
 
+    # Ensure DB connection is closed when thread stops
+    try:
+        thread_db.engine.dispose()
+        logger.info("Cleanup thread terminated gracefully and DB connection closed.")
+    except Exception as e:
+        logger.error(f"Error closing DB connection: {e}")
+
+# Start background cleanup thread
 cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
 cleanup_thread.start()
+def stop_background_cleanup(*args):
+    global active_cleanup
+    if active_cleanup:
+        active_cleanup = False
+        logger.info("Stopping background cleanup thread...")
+
+# Register signal handlers for production (Gunicorn, Docker, etc.)
+signal.signal(signal.SIGTERM, stop_background_cleanup)
+signal.signal(signal.SIGINT, stop_background_cleanup)
+
+# Fallback for local runs (e.g., python app.py)
+atexit.register(stop_background_cleanup)
 
 # API Endpoints
 
@@ -85,7 +105,7 @@ def get_seat_status(show_id):
 def hold_seats(show_id):
     data = request.get_json()
     seat_ids = data.get('seat_ids', [])
-    duration = data.get('hold_duration_seconds', 600)
+    duration = data.get('hold_duration_seconds', 60)
     
     duration = max(60, min(duration, 1800))
     
@@ -131,10 +151,6 @@ def release_hold(show_id):
 def health_check():
     return jsonify(db.health_check())
 
-@app.teardown_appcontext
-def shutdown_cleanup(exception=None):
-    global active_cleanup
-    active_cleanup = False
 
 if __name__ == '__main__':
     # Pre-initialize demo show
