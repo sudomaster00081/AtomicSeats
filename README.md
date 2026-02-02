@@ -29,16 +29,23 @@ A production-grade backend system for managing movie show seat reservations with
 
 ```
 seat-management-system/
-├── app.py                 # Flask application & API endpoints
-├── database_manager.py    # Core business logic & DB operations
-├── models.py              # SQLAlchemy data models
-├── requirements.txt       # Python dependencies
-├── docker-compose.yml     # PostgreSQL + App orchestration
-├── Dockerfile             # Application container definition
-├── .env.example           # Environment variables template
-├── README.md              # This file
+├── app.py                      # Flask application & API endpoints
+├── database_manager.py         # Core business logic & DB operations
+├── models.py                   # SQLAlchemy data models & enums
+├── stress_test.py              # Synthetic load generator
+├── test_seat_system.py         # Comprehensive API/system test harness
+├── docs/
+│   ├── diagrams/
+│   │   ├── sequence-diagram.png      # Request/response interaction flow
+│   │   └── state-machine-diagram.png # Seat lifecycle transitions
+│   └── testing/
+│       └── manual-test-commands.md   # Handy manual test commands
+├── requirements.txt            # Python dependencies
+├── docker-compose.yml          # PostgreSQL + App orchestration
+├── Dockerfile                  # Application container definition
+├── .env.example                # Environment variables template
 └── templates/
-    └── home.html          # Simple demo UI (optional)
+    └── home.html               # Simple demo UI (optional)
 ```
 
 ---
@@ -97,6 +104,29 @@ echo "DATABASE_URL=postgresql://seat_user:secure_password@localhost:5432/seat_ma
 # 4. Start application
 python app.py
 ```
+
+---
+
+## 🧠 Architectural Overview
+
+### Seat Lifecycle
+
+![Seat State Machine](docs/diagrams/state-machine-diagram.png)
+
+Seats transition between **available → held → booked**, with automated cleanup moving expired holds back to **available**. The [`database_manager.DatabaseManager.cleanup_expired_holds()`](database_manager.py:255) routine runs both on-demand from API calls and continuously via the background worker spawned in [`app.background_cleanup()`](app.py:93).
+
+### Request Flow
+
+![Sequence Diagram](docs/diagrams/sequence-diagram.png)
+
+1. Client requests seat status → [`app.get_seat_status()`](app.py:158) delegates to [`database_manager.DatabaseManager.get_seat_status()`](database_manager.py:280) for aggregated counts.
+2. Hold requests invoke [`app.hold_seats()`](app.py:166), which validates payloads and calls [`database_manager.DatabaseManager.hold_seats()`](database_manager.py:73). Seats are locked via `SELECT … FOR UPDATE` and a hold record is created.
+3. Booking uses [`app.book_seats()`](app.py:200) to convert an active hold into a booking atomically through [`database_manager.DatabaseManager.book_hold()`](database_manager.py:148). The operation is idempotent—duplicate requests return the existing booking.
+4. Releasing holds and resets are processed by [`app.release_hold()`](app.py:219) and [`app.reset_all_shows()`](app.py:235), eventually funneling through [`database_manager.DatabaseManager._cleanup_hold()`](database_manager.py:236) and [`database_manager.DatabaseManager.reset_all_seats()`](database_manager.py:355).
+
+### Background Expiration
+
+A daemon thread started on boot (`app.cleanup_thread`) periodically executes [`database_manager.DatabaseManager.cleanup_expired_holds()`](database_manager.py:255), ensuring seats held beyond their expiry return to the available pool without manual intervention. This keeps the system safe from abandoned carts even under heavy load.
 
 ---
 
@@ -196,6 +226,25 @@ Before deploying to production:
      -d '{"hold_id":"<ID>"}'
    ```
    ✅ **Expected**: Booking fails with "hold expired"; seat becomes available
+
+---
+
+## 🧪 Test Suite & Tooling
+
+| Artifact | Purpose | Entry Point |
+|----------|---------|-------------|
+| [`test_seat_system.py`](test_seat_system.py:1) | Full end-to-end verification including concurrency, invariants, and stress scenarios | `python test_seat_system.py` |
+| [`stress_test.py`](stress_test.py:1) | Focused load generator for synthetic traffic | `python stress_test.py` |
+| [`docs/testing/manual-test-commands.md`](docs/testing/manual-test-commands.md:1) | Quick command list for local smoke tests | n/a |
+
+### Quick Manual Checks
+
+```
+python stress_test.py
+python test_seat_system.py
+```
+
+Both scripts assume the Flask app is already running locally at `http://localhost:5000`.
 
 ---
 
