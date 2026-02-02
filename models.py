@@ -1,4 +1,5 @@
-# models.py
+"""ORM model definitions describing the seat management schema."""
+
 from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,16 +11,17 @@ import uuid
 Base = declarative_base()
 
 class SeatStatus(str, enum.Enum):
+    """Enumerated seat lifecycle states persisted in the database."""
     AVAILABLE = 'available'
     HELD = 'held'
     BOOKED = 'booked'
 
 class Show(Base):
     __tablename__ = 'shows'
-    
+
     show_id = Column(String, primary_key=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    
+
     seats = relationship('Seat', back_populates='show', cascade='all, delete-orphan')
     holds = relationship('Hold', back_populates='show', cascade='all, delete-orphan')
     bookings = relationship('Booking', back_populates='show', cascade='all, delete-orphan')
@@ -27,10 +29,9 @@ class Show(Base):
 class Seat(Base):
     __tablename__ = 'seats'
     
-    # CORRECTED: Primary key order (show_id first for better query performance)
     show_id = Column(String, ForeignKey('shows.show_id', ondelete='CASCADE'), primary_key=True)
     seat_id = Column(String, primary_key=True)
-    
+
     status = Column(Enum(SeatStatus, name='seat_status_enum', create_type=True), 
                    default=SeatStatus.AVAILABLE, nullable=False)
     hold_id = Column(UUID(as_uuid=True))

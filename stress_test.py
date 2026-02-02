@@ -1,3 +1,5 @@
+"""Ad-hoc load generator hammering the public API for concurrency validation."""
+
 import requests
 import threading
 import random
@@ -29,12 +31,7 @@ def get_seat_status():
     return r.json()
 
 def user_flow(user_id):
-    """
-    Simulates a single user:
-    1. Picks random seats
-    2. Tries to hold
-    3. Randomly books or abandons
-    """
+    """Simulate a single customer session with retries and probabilistic booking."""
     chosen_seats = random.sample(all_seats, SEATS_PER_USER)
 
     for attempt in range(MAX_RETRIES):
@@ -91,6 +88,7 @@ def user_flow(user_id):
 
 
 def run_stress_test():
+    """Fire a burst of concurrent requests and print aggregated counters."""
     print(f"\n🚀 Starting stress test with {TOTAL_USERS} concurrent users\n")
 
     start_time = time.time()

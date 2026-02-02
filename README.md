@@ -5,9 +5,9 @@
 ![Flask](https://img.shields.io/badge/framework-Flask-000000)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-A production-grade backend system for managing movie show seat reservations with **strong concurrency guarantees**, **data persistence**, and **automatic cleanup of expired holds**. Designed to handle high-traffic booking scenarios without double-booking or race conditions.
+A real-world based backend system for managing movie show seat reservations with **strong concurrency guarantees**, **data persistence**, and **automatic cleanup of expired holds**. Designed to handle high-traffic booking scenarios without double-booking or race conditions.
 
-> ✨ **Key Innovation**: Uses PostgreSQL row-level locking (`SELECT FOR UPDATE`) instead of application-level locks for true distributed concurrency safety.
+> ✨ **Key Feature**: Uses PostgreSQL row-level locking (`SELECT FOR UPDATE`) instead of application-level locks for true distributed concurrency safety.
 
 ---
 
@@ -20,7 +20,6 @@ A production-grade backend system for managing movie show seat reservations with
 | **Auto Cleanup** | Background job + on-demand expiration checks | Recovers seats from abandoned carts |
 | **Data Persistence** | PostgreSQL ACID-compliant storage | Survives restarts, crashes, deployments |
 | **State Integrity** | Database constraints + invariant checks | Guarantees seat count accuracy |
-| **Health Monitoring** | `/health` endpoint with DB connectivity check | Production observability |
 | **Docker Ready** | Single-command deployment | Consistent dev/prod environments |
 
 ---
@@ -67,9 +66,6 @@ cp .env.example .env
 # 3. Start services (PostgreSQL + Flask app)
 docker-compose up --build
 
-# 4. Verify system is healthy
-curl http://localhost:5000/health
-# Should return: {"status": "healthy", "database": "connected", "shows": 1}
 ```
 
 ✅ **Done!** System is running with:
@@ -161,7 +157,6 @@ curl http://localhost:5000/shows/avengers_2026_7pm/seats
 | `/shows/<id>/book` | POST | Confirm booking | **Requires valid hold_id**; atomic transition |
 | `/shows/<id>/release-hold` | POST | Cancel hold early | Releases seats immediately |
 | `/reset` | POST | Reset all shows to initial AVAILABLE state | Clears bookings and holds (admin/maintenance) |
-| `/health` | GET | System health check | Verifies DB connectivity + show counts |
 
 📌 **All timestamps are UTC**  
 📌 **Seat IDs are case-sensitive strings** (e.g., `"A1"`, `"ROW3_SEAT15"`)  

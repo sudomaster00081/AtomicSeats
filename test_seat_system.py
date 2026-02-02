@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Comprehensive Test Suite for Seat Management System
-Tests all critical scenarios including concurrency, edge cases, and failure recovery
-"""
+"""Comprehensive black-box test suite exercising the public API surface."""
 
 import requests
 import threading
@@ -21,7 +18,7 @@ TEST_SHOW_ID = "test_show_123"
 # Demo show has 50 seats (A1-A10, B1-B10, C1-C10, D1-D10, E1-E10)
 TOTAL_SEATS = 50
 
-# Colors for output
+# ANSI helpers for structured console output
 class Colors:
     GREEN = '\033[92m'
     RED = '\033[91m'
@@ -36,26 +33,31 @@ lock = threading.Lock()
 all_tests_passed = True
 
 def print_header(title):
+    """Format a section heading for easier scanability."""
     print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*60}")
     print(f"  {title}")
     print(f"{'='*60}{Colors.RESET}")
 
 def print_success(message):
+    """Emit a green success line and keep the global pass flag intact."""
     print(f"{Colors.GREEN}✓ {message}{Colors.RESET}")
 
 def print_failure(message):
+    """Emit a red failure line and mark the global suite status as failed."""
     global all_tests_passed
     all_tests_passed = False
     print(f"{Colors.RED}✗ {message}{Colors.RESET}")
 
 def print_info(message):
+    """Log an informational message in blue."""
     print(f"{Colors.BLUE}ℹ {message}{Colors.RESET}")
 
 def print_warning(message):
+    """Highlight a non-fatal warning in yellow."""
     print(f"{Colors.YELLOW}⚠ {message}{Colors.RESET}")
 
 def get_seat_status(show_id=SHOW_ID):
-    """Get current seat status for a show"""
+    """Fetch the latest seat status snapshot for assertions."""
     try:
         r = requests.get(f"{BASE_URL}/shows/{show_id}/seats", timeout=15)
         r.raise_for_status()
@@ -65,7 +67,7 @@ def get_seat_status(show_id=SHOW_ID):
         return None
 
 def verify_seat_invariant(show_id=SHOW_ID):
-    """Verify that available + held + booked == total_seats"""
+    """Ensure the core invariant: available + held + booked equals total seats."""
     status = get_seat_status(show_id)
     if not status:
         return False
@@ -80,7 +82,7 @@ def verify_seat_invariant(show_id=SHOW_ID):
     return invariant_ok
 
 def reset_show():
-    """Reset the show to initial state (all seats available)"""
+    """Return the demo show to a clean state via the public API."""
     print_info("Resetting show to initial state...")
     
     # Get current status
@@ -106,7 +108,7 @@ def reset_show():
 # ============================================================================
 
 def test_basic_booking():
-    """Test basic seat booking flow"""
+    """Validate the happy path of holding then booking seats."""
     print_header("TEST 1: Basic Seat Booking")
     
     # Reset show
@@ -150,7 +152,7 @@ def test_basic_booking():
     return verify_seat_invariant()
 
 def test_insufficient_seats():
-    """Test that booking fails when insufficient seats available"""
+    """Ensure over-subscribing seats is rejected once capacity is exhausted."""
     print_header("TEST 2: Insufficient Seats")
     
     reset_show()
@@ -184,7 +186,7 @@ def test_insufficient_seats():
     return verify_seat_invariant()
 
 def test_invalid_inputs():
-    """Test invalid inputs are rejected"""
+    """Check that malformed requests return appropriate client errors."""
     print_header("TEST 3: Invalid Inputs")
 
     # Test 1: Empty seat list
@@ -261,7 +263,7 @@ def test_invalid_inputs():
 # ============================================================================
 
 def concurrent_booking_worker(user_id, seats_per_user, results):
-    """Worker function for concurrent booking test"""
+    """Worker invoked by ThreadPoolExecutor during concurrency validation."""
     try:
         # Pick random seats
         all_seats = [f"{row}{num}" for row in "ABCDE" for num in range(1, 11)]
@@ -298,7 +300,7 @@ def concurrent_booking_worker(user_id, seats_per_user, results):
             results["failed"] += 1
 
 def test_concurrent_bookings():
-    """Test concurrent bookings don't cause overbooking"""
+    """Hammer the hold/book endpoints concurrently to detect race conditions."""
     print_header("TEST 4: Concurrent Bookings (Race Condition)")
     
     reset_show()
@@ -344,7 +346,7 @@ def test_concurrent_bookings():
     return verify_seat_invariant()
 
 def test_last_seat_race():
-    """Test that last seat is not double-booked"""
+    """Confirm only one contender can successfully book the final seat."""
     print_header("TEST 5: Last Seat Race Condition")
     
     reset_show()
@@ -454,7 +456,7 @@ def test_last_seat_race():
 # ============================================================================
 
 def test_hold_timeout():
-    """Test that held seats are released after timeout"""
+    """Verify held seats transition back to available after expiry."""
     print_header("TEST 6: Hold Timeout")
     
     reset_show()
@@ -496,7 +498,7 @@ def test_hold_timeout():
     return verify_seat_invariant()
 
 def test_hold_booking_before_timeout():
-    """Test that booking before timeout works"""
+    """Ensure booking a hold within its lifetime succeeds."""
     print_header("TEST 7: Booking Before Hold Timeout")
     
     reset_show()
@@ -538,7 +540,7 @@ def test_hold_booking_before_timeout():
     return verify_seat_invariant()
 
 def test_hold_by_different_users():
-    """Test that different users can hold different seats simultaneously"""
+    """Confirm multiple holds on distinct seats can coexist."""
     print_header("TEST 8: Multiple Users Holding Different Seats")
     
     reset_show()
@@ -606,7 +608,7 @@ def test_hold_by_different_users():
 # ============================================================================
 
 def test_idempotent_booking():
-    """Test that duplicate booking requests return consistent booking identity and state"""
+    """Assert repeat booking requests return the same booking response payload."""
     print_header("TEST 9: Idempotent Booking")
     
     reset_show()
@@ -713,7 +715,7 @@ def test_idempotent_booking():
 # ============================================================================
 
 def test_boundary_conditions():
-    """Test edge cases like 0 seats, negative seats, etc."""
+    """Exercise boundary cases such as empty seat lists and full-capacity holds."""
     print_header("TEST 10: Boundary Conditions")
     
     reset_show()
@@ -769,7 +771,7 @@ def test_boundary_conditions():
 # ============================================================================
 
 def test_seat_invariants():
-    """Test that seat state invariants always hold"""
+    """Run a scripted sequence of operations, checking invariants each step."""
     print_header("TEST 11: Seat State Invariants")
     
     reset_show()
@@ -822,7 +824,7 @@ def test_seat_invariants():
 # ============================================================================
 
 def comprehensive_stress_test():
-    """Comprehensive stress test combining all scenarios"""
+    """Blend varied user behaviors to mimic realistic production load."""
     print_header("TEST 12: Comprehensive Stress Test")
     
     reset_show()
@@ -928,7 +930,7 @@ def comprehensive_stress_test():
 # ============================================================================
 
 def run_all_tests():
-    """Run all test categories"""
+    """Iterate over the full battery of tests, aggregating their outcomes."""
     print_header("SEAT MANAGEMENT SYSTEM - COMPREHENSIVE TEST SUITE")
     print_info(f"Base URL: {BASE_URL}")
     print_info(f"Show ID: {SHOW_ID}")

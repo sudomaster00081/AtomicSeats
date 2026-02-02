@@ -1,4 +1,5 @@
-# app.py
+"""HTTP entrypoint for the seat management backend."""
+
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import logging
@@ -12,8 +13,6 @@ import atexit
 from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
-
-
 from database_manager import DatabaseManager
 
 logging.basicConfig(level=logging.INFO)
@@ -22,14 +21,13 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize database
-# DATABASE_URL = "postgresql://user:password@localhost:5432/seat_management"
+# Instantiate the database layer once so all request handlers reuse the same pool
 DATABASE_URL = os.getenv('DATABASE_URL')
-# Or from environment: os.getenv('DATABASE_URL')
 db = DatabaseManager(DATABASE_URL)
 
 
 def bad_request(message: str, *, details: Optional[Dict[str, Any]] = None):
+    """Return a uniform 400 payload, optionally including field-level details."""
     payload: Dict[str, Any] = {"error": message}
     if details:
         payload["details"] = details
@@ -37,6 +35,7 @@ def bad_request(message: str, *, details: Optional[Dict[str, Any]] = None):
 
 
 def require_json_object() -> Tuple[Optional[Dict[str, Any]], Optional[Tuple[str, int]]]:
+    """Ensure the request body is a JSON object before proceeding."""
     if not request.is_json:
         return None, bad_request("request body must be a JSON object")
 
@@ -48,6 +47,7 @@ def require_json_object() -> Tuple[Optional[Dict[str, Any]], Optional[Tuple[str,
 
 
 def validate_seat_ids(seat_ids: Any) -> Tuple[Optional[List[str]], Optional[Tuple[str, int]]]:
+    """Validate seat identifiers and return a deduplicated list."""
     if not isinstance(seat_ids, list):
         return None, bad_request("seat_ids must be provided as a non-empty JSON array")
 
@@ -68,8 +68,8 @@ def validate_seat_ids(seat_ids: Any) -> Tuple[Optional[List[str]], Optional[Tupl
 
     return normalized, None
 
-# Auto-initialize demo show if it doesn't exist
 def initialize_demo_show():
+    """Create an example show so local demos have usable data."""
     demo_show_id = "avengers_2026_7pm"
     demo_seats = [f"{row}{num}" for row in "ABCDE" for num in range(1, 11)]
     
@@ -87,11 +87,10 @@ initialize_demo_show()
 
 
 
-# Background cleanup thread
 active_cleanup = True
 
 def background_cleanup():
-    """Periodically clean up expired holds"""
+    """Periodically remove expired holds without blocking the request thread."""
     thread_db = DatabaseManager(os.getenv('DATABASE_URL'))  # Thread-local DB connection
     while active_cleanup:
         try:
@@ -109,10 +108,11 @@ def background_cleanup():
     except Exception as e:
         logger.error(f"Error closing DB connection: {e}")
 
-# Start background cleanup thread
+# Kick off cleanup in a dedicated daemon so it never blocks HTTP traffic
 cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
 cleanup_thread.start()
 def stop_background_cleanup(*args):
+    """Signal handler to terminate the cleaner gracefully."""
     global active_cleanup
     if active_cleanup:
         active_cleanup = False
@@ -129,11 +129,12 @@ atexit.register(stop_background_cleanup)
 
 @app.route("/")
 def home_page():
-
+    """Serve a minimal landing page for manual inspection."""
     return render_template("home.html")
 
 @app.route('/shows/<show_id>/initialize', methods=['POST'])
 def initialize_show(show_id):
+    """Create a new show with the provided seat map."""
     data, error_response = require_json_object()
     if error_response:
         return error_response
@@ -157,6 +158,7 @@ def initialize_show(show_id):
 
 @app.route('/shows/<show_id>/seats', methods=['GET'])
 def get_seat_status(show_id):
+    """Return the live seat summary for a show."""
     status = db.get_seat_status(show_id)
     if status is None:
         return jsonify({"error": "show not found"}), 404
@@ -165,6 +167,7 @@ def get_seat_status(show_id):
 
 @app.route('/shows/<show_id>/hold', methods=['POST'])
 def hold_seats(show_id):
+    """Place a temporary hold on the requested seats."""
     data, error_response = require_json_object()
     if error_response:
         return error_response
@@ -199,6 +202,7 @@ def hold_seats(show_id):
 
 @app.route('/shows/<show_id>/book', methods=['POST'])
 def book_seats(show_id):
+    """Convert an active hold into a confirmed booking."""
     data, error_response = require_json_object()
     if error_response:
         return error_response
@@ -218,6 +222,7 @@ def book_seats(show_id):
 
 @app.route('/shows/<show_id>/release-hold', methods=['POST'])
 def release_hold(show_id):
+    """Release a hold early, making seats available immediately."""
     data, error_response = require_json_object()
     if error_response:
         return error_response
@@ -234,6 +239,7 @@ def release_hold(show_id):
 
 @app.route('/reset', methods=['POST'])
 def reset_all_shows():
+    """Administrative endpoint to reset the entire dataset."""
     # Optional: allow an empty JSON body for future extensibility while validating if provided
     if request.data:
         data, error_response = require_json_object()
@@ -259,6 +265,7 @@ def reset_all_shows():
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    """Expose the database connectivity and show count."""
     return jsonify(db.health_check())
 
 

@@ -1,4 +1,5 @@
-# database_manager.py
+"""Database coordination layer encapsulating seat state transitions."""
+
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -13,7 +14,7 @@ from models import Base, Show, Seat, Hold, Booking, SeatStatus
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    """Thread-safe database manager for seat operations"""
+    """Thread-safe façade over SQLAlchemy sessions and transactional flows."""
     
     def __init__(self, database_url: str):
         self.engine = create_engine(
@@ -25,13 +26,13 @@ class DatabaseManager:
             echo=False
         )
         self.session_factory = scoped_session(sessionmaker(bind=self.engine))
-        
+
         # Create tables
         Base.metadata.create_all(self.engine)
-    
+
     @contextmanager
     def get_session(self):
-        """Context manager for database sessions"""
+        """Provide a transactional scope, committing on success and rolling back otherwise."""
         session = self.session_factory()
         try:
             yield session
@@ -44,7 +45,7 @@ class DatabaseManager:
             session.close()
     
     def initialize_show(self, show_id: str, seat_ids: List[str]) -> Tuple[bool, str]:
-        """Initialize a show with seats (idempotent)"""
+        """Create a fresh show record along with its seat map if it does not already exist."""
         try:
             with self.get_session() as session:
                 # Check if show exists
@@ -76,9 +77,7 @@ class DatabaseManager:
         seat_ids: List[str], 
         hold_duration_sec: int = 600
     ) -> Tuple[bool, Dict]:
-        """
-        Hold seats atomically using database transactions and row-level locking
-        """
+        """Atomically mark seats as held using row-level locking to prevent races."""
         now = datetime.now(timezone.utc)
         expires_at = now + timedelta(seconds=hold_duration_sec)
         
@@ -146,7 +145,7 @@ class DatabaseManager:
             return False, {"error": f"internal error: {str(e)}"}
     
     def book_hold(self, show_id: str, hold_id: str) -> Tuple[bool, Dict]:
-        """Book a hold atomically"""
+        """Promote a valid hold into a booking while preserving idempotency."""
         now = datetime.now(timezone.utc)
         
         try:
@@ -215,7 +214,7 @@ class DatabaseManager:
             return False, {"error": f"internal error: {str(e)}"}
     
     def release_hold(self, show_id: str, hold_id: str) -> bool:
-        """Release a hold and free seats"""
+        """Release a hold early and free its seats for other customers."""
         try:
             with self.get_session() as session:
                 hold = session.query(Hold).filter(
@@ -234,7 +233,7 @@ class DatabaseManager:
             return False
     
     def _cleanup_hold(self, session, hold):
-        """Internal: cleanup hold and release seats (called within transaction)"""
+        """Internal helper: clear seat metadata and delete the hold within the active transaction."""
         # Release seats
         session.query(Seat).filter(
             Seat.show_id == hold.show_id,
@@ -253,7 +252,7 @@ class DatabaseManager:
         session.delete(hold)
     
     def cleanup_expired_holds(self):
-        """Background job: cleanup all expired holds"""
+        """Find and purge holds whose expiry has passed, returning the cleanup count."""
         now = datetime.now(timezone.utc)
         
         try:
@@ -278,7 +277,7 @@ class DatabaseManager:
             return 0
     
     def get_seat_status(self, show_id: str) -> Optional[Dict]:
-        """Get current seat status for a show"""
+        """Return booking aggregates and per-seat details for the given show."""
         try:
             with self.get_session() as session:
                 show = session.query(Show).filter_by(show_id=show_id).first()
@@ -330,7 +329,7 @@ class DatabaseManager:
             return None
     
     def health_check(self) -> Dict:
-        """Health check with database connectivity"""
+        """Report database connectivity and show count; used by the /health endpoint."""
         try:
             with self.get_session() as session:
                 # Test database connection
@@ -353,7 +352,7 @@ class DatabaseManager:
             }
 
     def reset_all_seats(self) -> Tuple[bool, Dict[str, int]]:
-        """Reset seats of all shows to AVAILABLE and clear holds/bookings."""
+        """Restore the database to a pristine state by clearing holds, bookings, and seat metadata."""
         try:
             with self.get_session() as session:
                 deleted_holds = session.query(Hold).delete(synchronize_session=False)
