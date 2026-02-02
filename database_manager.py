@@ -351,3 +351,28 @@ class DatabaseManager:
                 "database": "disconnected",
                 "error": str(e)
             }
+
+    def reset_all_seats(self) -> Tuple[bool, Dict[str, int]]:
+        """Reset seats of all shows to AVAILABLE and clear holds/bookings."""
+        try:
+            with self.get_session() as session:
+                deleted_holds = session.query(Hold).delete(synchronize_session=False)
+                deleted_bookings = session.query(Booking).delete(synchronize_session=False)
+
+                updated_seats = session.query(Seat).update(
+                    {
+                        Seat.status: SeatStatus.AVAILABLE,
+                        Seat.hold_id: None,
+                        Seat.hold_expires_at: None,
+                    },
+                    synchronize_session=False,
+                )
+
+                return True, {
+                    "holds_cleared": deleted_holds,
+                    "bookings_cleared": deleted_bookings,
+                    "seats_reset": updated_seats,
+                }
+        except Exception as e:
+            logger.error(f"Reset all seats error: {e}")
+            return False, {"error": str(e)}

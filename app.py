@@ -165,6 +165,23 @@ def release_hold(show_id):
     else:
         return jsonify({"error": "hold not found"}), 404
 
+@app.route('/reset', methods=['POST'])
+def reset_all_shows():
+    success, result = db.reset_all_seats()
+
+    if success:
+        logger.info(
+            "System reset: %s holds cleared, %s bookings cleared, %s seats reset",
+            result.get('holds_cleared', 0),
+            result.get('bookings_cleared', 0),
+            result.get('seats_reset', 0)
+        )
+        response = {"message": "all shows reset", **result}
+        return jsonify(response), 200
+
+    logger.error(f"System reset failed: {result.get('error')}")
+    return jsonify({"error": "reset failed", "details": result.get('error')}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify(db.health_check())

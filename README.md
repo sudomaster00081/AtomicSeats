@@ -130,6 +130,7 @@ curl http://localhost:5000/shows/avengers_2026_7pm/seats
 | `/shows/<id>/hold` | POST | Reserve seats temporarily | Returns `hold_id`; seats locked for duration |
 | `/shows/<id>/book` | POST | Confirm booking | **Requires valid hold_id**; atomic transition |
 | `/shows/<id>/release-hold` | POST | Cancel hold early | Releases seats immediately |
+| `/reset` | POST | Reset all shows to initial AVAILABLE state | Clears bookings and holds (admin/maintenance) |
 | `/health` | GET | System health check | Verifies DB connectivity + show counts |
 
 📌 **All timestamps are UTC**  
