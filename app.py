@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 import signal
 import atexit
+from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
 
@@ -26,6 +27,46 @@ CORS(app)
 DATABASE_URL = os.getenv('DATABASE_URL')
 # Or from environment: os.getenv('DATABASE_URL')
 db = DatabaseManager(DATABASE_URL)
+
+
+def bad_request(message: str, *, details: Optional[Dict[str, Any]] = None):
+    payload: Dict[str, Any] = {"error": message}
+    if details:
+        payload["details"] = details
+    return jsonify(payload), 400
+
+
+def require_json_object() -> Tuple[Optional[Dict[str, Any]], Optional[Tuple[str, int]]]:
+    if not request.is_json:
+        return None, bad_request("request body must be a JSON object")
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, bad_request("request body must be a JSON object")
+
+    return data, None
+
+
+def validate_seat_ids(seat_ids: Any) -> Tuple[Optional[List[str]], Optional[Tuple[str, int]]]:
+    if not isinstance(seat_ids, list):
+        return None, bad_request("seat_ids must be provided as a non-empty JSON array")
+
+    if len(seat_ids) == 0:
+        return None, bad_request("seat_ids must contain at least one seat")
+
+    normalized: List[str] = []
+    for index, seat in enumerate(seat_ids):
+        if not isinstance(seat, str):
+            return None, bad_request("each seat_id must be a string", details={"index": index})
+        trimmed = seat.strip()
+        if not trimmed:
+            return None, bad_request("seat_ids must not contain empty strings", details={"index": index})
+        normalized.append(trimmed)
+
+    if len(set(normalized)) != len(normalized):
+        return None, bad_request("seat_ids must not contain duplicates")
+
+    return normalized, None
 
 # Auto-initialize demo show if it doesn't exist
 def initialize_demo_show():
@@ -93,12 +134,15 @@ def home_page():
 
 @app.route('/shows/<show_id>/initialize', methods=['POST'])
 def initialize_show(show_id):
-    data = request.get_json()
-    seat_ids = data.get('seat_ids')
-    
-    if not seat_ids or not isinstance(seat_ids, list):
-        return jsonify({"error": "seat_ids (non-empty list) required"}), 400
-    
+    data, error_response = require_json_object()
+    if error_response:
+        return error_response
+
+    seat_ids_raw = data.get('seat_ids')
+    seat_ids, seat_error = validate_seat_ids(seat_ids_raw)
+    if seat_error:
+        return seat_error
+
     success, message = db.initialize_show(show_id, seat_ids)
     
     if success:
@@ -121,12 +165,30 @@ def get_seat_status(show_id):
 
 @app.route('/shows/<show_id>/hold', methods=['POST'])
 def hold_seats(show_id):
-    data = request.get_json()
-    seat_ids = data.get('seat_ids', [])
-    duration = data.get('hold_duration_seconds', 60)
-    
-    duration = max(60, min(duration, 1800))
-    
+    data, error_response = require_json_object()
+    if error_response:
+        return error_response
+
+    seat_ids_raw = data.get('seat_ids')
+    seat_ids, seat_error = validate_seat_ids(seat_ids_raw)
+    if seat_error:
+        return seat_error
+
+    duration_raw = data.get('hold_duration_seconds', 60)
+    if isinstance(duration_raw, bool):  # Reject boolean masquerading as int
+        return bad_request("hold_duration_seconds must be an integer between 60 and 1800 seconds")
+
+    if isinstance(duration_raw, (int, float)):
+        duration_int = int(duration_raw)
+    elif isinstance(duration_raw, str) and duration_raw.isdigit():
+        duration_int = int(duration_raw)
+    else:
+        if 'hold_duration_seconds' in data:
+            return bad_request("hold_duration_seconds must be an integer between 60 and 1800 seconds")
+        duration_int = 60
+
+    duration = max(60, min(duration_int, 1800))
+
     success, result = db.hold_seats(show_id, seat_ids, duration)
     
     if success:
@@ -137,11 +199,14 @@ def hold_seats(show_id):
 
 @app.route('/shows/<show_id>/book', methods=['POST'])
 def book_seats(show_id):
-    data = request.get_json()
+    data, error_response = require_json_object()
+    if error_response:
+        return error_response
+
     hold_id = data.get('hold_id')
-    
-    if not hold_id:
-        return jsonify({"error": "hold_id required"}), 400
+    if not isinstance(hold_id, str) or not hold_id.strip():
+        return bad_request("hold_id must be a non-empty string")
+    hold_id = hold_id.strip()
     
     success, result = db.book_hold(show_id, hold_id)
     
@@ -153,13 +218,15 @@ def book_seats(show_id):
 
 @app.route('/shows/<show_id>/release-hold', methods=['POST'])
 def release_hold(show_id):
-    data = request.get_json()
+    data, error_response = require_json_object()
+    if error_response:
+        return error_response
+
     hold_id = data.get('hold_id')
-    
-    if not hold_id:
-        return jsonify({"error": "hold_id required"}), 400
-    
-    if db.release_hold(show_id, hold_id):
+    if not isinstance(hold_id, str) or not hold_id.strip():
+        return bad_request("hold_id must be a non-empty string")
+
+    if db.release_hold(show_id, hold_id.strip()):
         logger.info(f"Hold released: {show_id}, hold_id={hold_id}")
         return jsonify({"message": "hold released"}), 200
     else:
@@ -167,6 +234,14 @@ def release_hold(show_id):
 
 @app.route('/reset', methods=['POST'])
 def reset_all_shows():
+    # Optional: allow an empty JSON body for future extensibility while validating if provided
+    if request.data:
+        data, error_response = require_json_object()
+        if error_response:
+            return error_response
+        if data:
+            return bad_request("reset payload must be empty")
+
     success, result = db.reset_all_seats()
 
     if success:
